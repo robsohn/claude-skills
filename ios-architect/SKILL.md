@@ -1,11 +1,13 @@
 ---
 name: ios-architect
-description: Comprehensive iOS application architecture guidance focusing on SwiftUI and the Model-View (MV) pattern. Use when Claude needs to design iOS application architecture, create models, design backend functionality, plan data flow, write code, or provide architectural recommendations for iOS apps. Covers aggregate root models, service layers, SwiftUI best practices, and Apple's recommended patterns.
+description: Comprehensive iOS application architecture guidance focusing on SwiftUI and the Model-View (MV) pattern for iOS 17+. Use when Claude needs to design iOS application architecture, create models, design backend functionality, plan data flow, write code, or provide architectural recommendations for iOS apps. Covers aggregate root models, service layers, SwiftUI best practices, and Apple's recommended patterns.
 ---
 
 # iOS Architect
 
 Comprehensive guidance for architecting iOS applications using SwiftUI and the Model-View (MV) pattern, following Apple's recommendations and modern best practices.
+
+**Target Platform**: iOS 17+ / macOS 14+ using the Observation framework
 
 ## Core Architecture Pattern
 
@@ -15,16 +17,13 @@ Use the **Model-View (MV)** pattern for SwiftUI applications:
 - **Model**: Aggregate root models that provide entities to views
 - **Service Layer**: Network/data services that aggregate models call
 
-### State Management Hierarchy
+### State Management
 
 SwiftUI provides a hierarchy of property wrappers for different state needs:
 
 - **@State**: Local view state, owned by the view
 - **@Binding**: Two-way connection to state owned elsewhere
-- **@StateObject**: Creates and owns an ObservableObject
-- **@ObservedObject**: References an ObservableObject owned elsewhere
-- **@EnvironmentObject**: Dependency injection through the view hierarchy
-- **@Environment**: Access to system-provided values AND custom @Observable models (iOS 17+)
+- **@Environment**: Access to shared models and system-provided values
 
 ### Key Principle: View IS the View Model
 
@@ -35,7 +34,10 @@ SwiftUI views already have MVVM built-in through property wrappers. Do NOT creat
 - Views handle UI validation and presentation logic directly
 - Aggregate models handle business logic and data coordination
 
-For detailed instructions about implementing design patters reference [references/common-patterns.md](references/common-patterns.md)
+For detailed implementation patterns and examples:
+- `references/common-patterns.md` - Core patterns with code examples
+- `references/testing-patterns.md` - Testing strategies
+- `references/mv-pattern-guide.md` - Complete guide with detailed examples
 
 ## Best Practices
 
@@ -60,12 +62,13 @@ Name models based on bounded context, not screen count:
 
 Test business logic in aggregate models using mock services. Test service layer against real APIs or test databases. Use XCTest UI testing for end-to-end validation.
 
-For detailed testing examples reference [references/testing-patterns.md](references/testing-patterns.md)
+For detailed testing examples, see `references/testing-patterns.md`.
 
 ## Additional Resources
 
-For detailed implementation examples and in-depth discussion of the MV pattern, see:
-
+For detailed implementation examples and in-depth discussion of the MV pattern:
+- `references/common-patterns.md` - Modern patterns and best practices
 - `references/mv-pattern-guide.md` - Complete guide with code examples
+- `references/testing-patterns.md` - Testing strategies
 - Apple's WWDC: Data Essentials in SwiftUI
 - Apple's sample apps: Fruta, Food Truck, Meme Creator

@@ -2,13 +2,15 @@
 
 This guide provides detailed implementation examples and best practices for the Model-View (MV) pattern in SwiftUI, based on practical experience and Apple's recommendations.
 
+**Target Platform**: iOS 17+ / macOS 14+ using the Observation framework
+
 ## Philosophy
 
 **Core Principle**: SwiftUI views are already view models. Don't add unnecessary complexity by creating separate view model classes for each view.
 
 **What This Means**:
 
-- Views use property wrappers (`@State`, `@Environment`) for state management (iOS 17+)
+- Views use property wrappers (`@State`, `@Environment`) for state management
 - Views handle UI validation and presentation formatting
 - Aggregate models coordinate business logic and data operations
 - Service layers handle networking and persistence
@@ -59,7 +61,7 @@ OrderModel ─────────► CustomerModel (to get customer data)
 ### 1. Domain Model
 
 ```swift
-struct Order: Codable, Identifiable {
+struct Order: Codable, Identifiable, Equatable {
     let id: UUID?
     var name: String
     var coffeeName: String
@@ -145,7 +147,7 @@ class OrderService: OrderServiceProtocol {
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         
-        let (_, _) = try await URLSession.shared.data(for: request)
+        _ = try await URLSession.shared.data(for: request)
     }
 }
 ```
@@ -187,39 +189,62 @@ class OrderModel {
     }
     
     func placeOrder(_ order: Order) async {
+        // Optimistic update
+        orders.append(order)
+        
         do {
             let newOrder = try await orderService.placeOrder(order)
-            orders.append(newOrder)
+            // Replace temporary order with server response
+            if let index = orders.firstIndex(where: { $0.id == order.id || $0 == order }) {
+                orders[index] = newOrder
+            }
         } catch {
-            errorMessage = "Failed to place order: \(error.localizedDescription)"
+            // Rollback on failure
+            orders.removeAll { $0 == order }
+            errorMessage = "Failed to create order: \(error.localizedDescription)"
         }
     }
     
     func updateOrder(_ order: Order) async {
+        // Save original for rollback
+        let originalIndex = orders.firstIndex(where: { $0.id == order.id })
+        let original = originalIndex.map { orders[$0] }
+        
+        // Optimistic update
+        if let index = originalIndex {
+            orders[index] = order
+        }
+        
         do {
             let updatedOrder = try await orderService.updateOrder(order)
-            
-            guard let index = orders.firstIndex(where: { $0.id == updatedOrder.id }) else {
-                errorMessage = "Order not found in local collection"
-                return
+            if let index = orders.firstIndex(where: { $0.id == updatedOrder.id }) {
+                orders[index] = updatedOrder
             }
-            
-            orders[index] = updatedOrder
         } catch {
+            // Rollback on failure
+            if let index = originalIndex, let original = original {
+                orders[index] = original
+            }
             errorMessage = "Failed to update order: \(error.localizedDescription)"
         }
     }
     
     func deleteOrder(_ order: Order) async {
-        guard let id = order.id else {
-            errorMessage = "Cannot delete order without ID"
-            return
-        }
+        guard let id = order.id else { return }
+        
+        // Save original for rollback
+        let originalIndex = orders.firstIndex(where: { $0.id == id })
+        
+        // Optimistic update
+        orders.removeAll { $0.id == id }
         
         do {
             try await orderService.deleteOrder(id)
-            orders.removeAll { $0.id == id }
         } catch {
+            // Rollback on failure
+            if let index = originalIndex {
+                orders.insert(order, at: index)
+            }
             errorMessage = "Failed to delete order: \(error.localizedDescription)"
         }
     }
@@ -244,7 +269,7 @@ class OrderModel {
     
     func searchOrders(query: String) -> [Order] {
         guard !query.isEmpty else { return orders }
-        return orders.filter { 
+        return orders.filter {
             $0.name.localizedCaseInsensitiveContains(query) ||
             $0.coffeeName.localizedCaseInsensitiveContains(query)
         }
@@ -313,67 +338,108 @@ struct OrderListView: View {
         List {
             ForEach(model.orders) { order in
                 OrderRow(order: order)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task {
+                                await model.deleteOrder(order)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .contentShape(Rectangle())
                     .onTapGesture {
                         selectedOrder = order
                     }
             }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    let order = model.orders[index]
-                    Task {
-                        await model.deleteOrder(order)
-                    }
-                }
-            }
+        }
+        .refreshable {
+            await model.getAllOrders()
         }
     }
 }
-```
 
-#### Row View
-
-```swift
 struct OrderRow: View {
     let order: Order
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(order.name)
-                .font(.headline)
-            
-            HStack {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(order.name)
+                    .font(.headline)
+                
                 Text(order.coffeeName)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                
-                Spacer()
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(order.total, format: .currency(code: "USD"))
+                    .font(.headline)
                 
                 Text(order.size.rawValue)
                     .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.quaternary)
-                    .clipShape(Capsule())
+                    .foregroundStyle(.secondary)
             }
-            
-            Text("$\(order.total, specifier: "%.2f")")
-                .font(.subheadline)
-                .fontWeight(.medium)
         }
         .padding(.vertical, 4)
     }
 }
 ```
 
-#### Form View
+#### Create/Edit View
 
 ```swift
+struct OrderFormState {
+    var name: String = ""
+    var coffeeName: String = ""
+    var total: String = ""
+    var size: CoffeeSize = .medium
+    
+    var nameError: String = ""
+    var coffeeNameError: String = ""
+    var totalError: String = ""
+    
+    mutating func validate() -> Bool {
+        // Reset errors
+        nameError = ""
+        coffeeNameError = ""
+        totalError = ""
+        
+        // Validate name
+        if name.isEmpty {
+            nameError = "Name cannot be empty"
+        }
+        
+        // Validate coffee name
+        if coffeeName.isEmpty {
+            coffeeNameError = "Coffee name cannot be empty"
+        }
+        
+        // Validate total
+        if total.isEmpty {
+            totalError = "Total cannot be empty"
+        } else if Double(total) == nil {
+            totalError = "Total must be a valid number"
+        } else if let value = Double(total), value < 0 {
+            totalError = "Total cannot be negative"
+        }
+        
+        return nameError.isEmpty &&
+               coffeeNameError.isEmpty &&
+               totalError.isEmpty
+    }
+}
+
 struct AddOrderView: View {
     @Environment(OrderModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     
-    let order: Order?
     @State private var formState = OrderFormState()
+    
+    let order: Order?
     
     init(order: Order? = nil) {
         self.order = order
@@ -392,7 +458,7 @@ struct AddOrderView: View {
                 }
                 
                 Section {
-                    TextField("Coffee", text: $formState.coffeeName)
+                    TextField("Coffee Name", text: $formState.coffeeName)
                     if !formState.coffeeNameError.isEmpty {
                         Text(formState.coffeeNameError)
                             .font(.caption)
@@ -468,63 +534,16 @@ struct AddOrderView: View {
 }
 ```
 
-#### Form State
-
-```swift
-struct OrderFormState {
-    var name: String = ""
-    var coffeeName: String = ""
-    var total: String = ""
-    var size: CoffeeSize = .medium
-    
-    var nameError: String = ""
-    var coffeeNameError: String = ""
-    var totalError: String = ""
-    
-    mutating func validate() -> Bool {
-        nameError = ""
-        coffeeNameError = ""
-        totalError = ""
-        
-        if name.isEmpty {
-            nameError = "Name is required"
-        }
-        
-        if coffeeName.isEmpty {
-            coffeeNameError = "Coffee name is required"
-        }
-        
-        if total.isEmpty {
-            totalError = "Total is required"
-        } else if Double(total) == nil {
-            totalError = "Total must be a valid number"
-        } else if let value = Double(total), value <= 0 {
-            totalError = "Total must be greater than 0"
-        }
-        
-        return nameError.isEmpty && coffeeNameError.isEmpty && totalError.isEmpty
-    }
-}
-```
-
 ### 5. App Entry Point
 
 ```swift
-import SwiftUI
-
 @main
 struct CoffeeApp: App {
-    private let orderService = OrderService(
-        baseURL: URL(string: "https://api.example.com")!
-    )
-    @State private var orderModel: OrderModel
-    
-    init() {
-        let service = OrderService(
+    @State private var orderModel = OrderModel(
+        orderService: OrderService(
             baseURL: URL(string: "https://api.example.com")!
         )
-        _orderModel = State(initialValue: OrderModel(orderService: service))
-    }
+    )
     
     var body: some Scene {
         WindowGroup {
@@ -550,14 +569,6 @@ struct CoffeeApp: App {
 - Inventory availability
 - User permissions
 - Complex domain logic
-
-Example of UI validation in HTML:
-
-```html
-<input type="text" required minlength="5" maxlength="100" />
-```
-
-This is purely UI validation, not business logic.
 
 ## Testing Patterns
 
@@ -594,10 +605,9 @@ class MockOrderService: OrderServiceProtocol {
         if shouldFail {
             throw OrderServiceError.requestFailed
         }
-        guard let index = mockOrders.firstIndex(where: { $0.id == order.id }) else {
-            throw OrderServiceError.requestFailed
+        if let index = mockOrders.firstIndex(where: { $0.id == order.id }) {
+            mockOrders[index] = order
         }
-        mockOrders[index] = order
         return order
     }
     
@@ -613,8 +623,6 @@ class MockOrderService: OrderServiceProtocol {
 ### Testing Aggregate Model
 
 ```swift
-import XCTest
-
 @MainActor
 class OrderModelTests: XCTestCase {
     func testPlaceOrder() async throws {
@@ -635,7 +643,6 @@ class OrderModelTests: XCTestCase {
         // Assert
         XCTAssertEqual(model.orders.count, 1)
         XCTAssertEqual(model.orders.first?.name, "John")
-        XCTAssertNil(model.errorMessage)
     }
     
     func testSortOrders() async throws {
@@ -657,18 +664,19 @@ class OrderModelTests: XCTestCase {
         XCTAssertEqual(model.orders.last?.name, "Zoe")
     }
     
-    func testErrorHandling() async throws {
+    func testOptimisticUpdateRollback() async throws {
         // Arrange
         let mockService = MockOrderService()
         mockService.shouldFail = true
         let model = OrderModel(orderService: mockService)
+        let order = Order(id: nil, name: "Test", coffeeName: "Latte", total: 5.0, size: .medium)
         
         // Act
-        await model.getAllOrders()
+        await model.placeOrder(order)
         
         // Assert
+        XCTAssertEqual(model.orders.count, 0) // Should rollback
         XCTAssertNotNil(model.errorMessage)
-        XCTAssertTrue(model.orders.isEmpty)
     }
 }
 ```
@@ -684,13 +692,10 @@ class OrderListViewModel: ObservableObject {
     // This is unnecessary complexity
 }
 
-// Passing EnvironmentObject to a separate view model
-class OrderViewModel: ObservableObject {
-    let model: Model
-    
-    init(model: Model) {
-        self.model = model  // Don't do this
-    }
+// Using old ObservableObject pattern
+class OrderModel: ObservableObject {
+    @Published var orders: [Order] = []
+    // Use @Observable instead for iOS 17+
 }
 ```
 
@@ -707,47 +712,13 @@ struct OrderListView: View {
         }
     }
 }
-```
 
-## Performance Considerations
-
-### View Re-evaluation vs Re-rendering
-
-```swift
-struct DemoView: View {
-    @State private var name: String = ""
-    
-    var body: some View {
-        let _ = Self._printChanges()  // Debug view updates
-        
-        VStack {
-            List(1...20, id: \.self) { index in
-                Text("\(index)")  // Not re-rendered when name changes
-            }
-            
-            TextField("Name", text: $name)  // Only this re-renders
-        }
-    }
+// Use @Observable
+@Observable
+class OrderModel {
+    var orders: [Order] = []  // Auto-tracked
 }
 ```
-
-When `name` changes:
-
-- Body is **re-evaluated** (fast)
-- Only changed views are **re-rendered** (TextField)
-- Static views (List items) are not re-rendered
-
-### Splitting Environment Models
-
-If performance issues arise, split large models:
-
-```swift
-@Environment(OrderModel.self) private var orderModel
-@Environment(ProductModel.self) private var productModel
-@Environment(UserModel.self) private var userModel
-```
-
-This prevents unnecessary re-evaluations when only one model changes.
 
 ## Key Takeaways
 
@@ -757,14 +728,13 @@ This prevents unnecessary re-evaluations when only one model changes.
 4. **Direct Access**: Views directly consume model objects
 5. **UI Validation**: Keep in views, business rules in models/server
 6. **@MainActor**: Always annotate aggregate models
-7. **Testing**: Focus on meaningful behavior tests, not mocks
-8. **iOS 17+**: Use `@Observable` and `@Environment` for modern apps
-9. **Error Handling**: Use `defer` pattern and handle errors internally
-10. **Dependency Injection**: Use protocols and `@State` for models
+7. **@Observable**: Use for iOS 17+, automatic property tracking
+8. **Optimistic Updates**: Update UI first, rollback on failure
+9. **Testing**: Focus on meaningful behavior tests, not implementation
 
 ## Additional Resources
 
 - [Apple WWDC: Data Essentials in SwiftUI](https://developer.apple.com/videos/play/wwdc2020/10040/)
-- [Apple WWDC: Discover Observation in SwiftUI](https://developer.apple.com/videos/play/wwdc2023/10149/)
 - [Apple Sample: Fruta App](https://developer.apple.com/documentation/swiftui/fruta_building_a_feature-rich_app_with_swiftui)
 - [Apple Sample: Food Truck App](https://developer.apple.com/documentation/swiftui/food_truck_building_a_swiftui_multiplatform_app)
+- [Swift Evolution: Observation](https://github.com/apple/swift-evolution/blob/main/proposals/0395-observability.md)

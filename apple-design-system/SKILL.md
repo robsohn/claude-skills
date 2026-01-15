@@ -7,10 +7,24 @@ description: Design iOS interfaces following Apple Human Interface Guidelines an
 
 Provides iOS-native design guidance for building interfaces that feel natural on iOS while maintaining creative distinctiveness. Works alongside the `frontend-design` skill to adapt bold web aesthetics to iOS conventions.
 
+## How to Use This Skill
+
+This skill provides three levels of guidance:
+
+1. **Quick Reference** (below): Fast lookups for common design decisions
+2. **Complete System** ([reference.md](reference.md)): Full design system documentation  
+3. **Code Examples** ([examples.md](examples.md)): Runnable patterns and components
+
+**Common workflows:**
+- Need a button style? → Check Quick Design Decisions below
+- Designing a screen layout? → Use Decision Flowchart below
+- Need complete typography system? → See [reference.md](reference.md#typography-system)
+- Want to see a meal card example? → See [examples.md](examples.md#meal-card-with-liquid-glass)
+- Implementing Liquid Glass? → Check quick guide below, then [reference.md](reference.md#liquid-glass-detailed-guide) for advanced features
+
 ## Core Principles
 
 **Apple Human Interface Guidelines:**
-
 - **Clarity**: Legible text, precise icons, subtle adornments
 - **Deference**: Content-first, UI doesn't compete with content
 - **Depth**: Visual layers and motion convey hierarchy
@@ -18,24 +32,23 @@ Provides iOS-native design guidance for building interfaces that feel natural on
 ## Quick Design Decisions
 
 ### Typography
+**Primary styles:**
+- `.font(.title)` - 28pt section headers
+- `.font(.headline)` - 17pt emphasized content
+- `.font(.body)` - 17pt default reading text
+- `.font(.caption)` - 12pt labels and metadata
 
-Use semantic font styles:
-
-```swift
-.font(.title)     // 28pt section headers
-.font(.headline)  // 17pt emphasized
-.font(.body)      // 17pt default
-```
-
-For complete typography system, see [reference.md](reference.md#typography-system)
+📖 **Complete system**: [reference.md](reference.md#typography-system)
 
 ### Spacing
+**Standard values (4pt grid):**
+- Tight: 4pt, 8pt - Icon spacing, compact layouts
+- Comfortable: 12pt, 16pt - Card padding, general spacing
+- Generous: 24pt, 32pt, 48pt - Section separation
 
-Follow 4pt grid system: 4, 8, 12, 16, 24, 32, 48
-For complete spacing system, see [reference.md](reference.md#spacing-system)
+📖 **Complete system**: [reference.md](reference.md#spacing-system)
 
 ### Navigation
-
 ```swift
 TabView { }                           // Primary (4-tab: Dashboard, Meals, Training, Profile)
 NavigationStack { }                   // Hierarchical drill-down
@@ -43,7 +56,6 @@ NavigationStack { }                   // Hierarchical drill-down
 ```
 
 ### Buttons
-
 ```swift
 .buttonStyle(.borderedProminent)      // Primary CTA
 .buttonStyle(.bordered)               // Secondary action
@@ -53,14 +65,12 @@ NavigationStack { }                   // Hierarchical drill-down
 ## Liquid Glass Design (iOS 26+)
 
 Liquid Glass combines translucency with fluid, interactive effects. Use for:
-
 - Interactive cards (meal cards, training sessions)
 - Prominent CTAs
 - Dashboard widgets
 - Hub section headers
 
 **Basic usage:**
-
 ```swift
 // Simple glass effect
 Text("Upcoming Race")
@@ -83,7 +93,6 @@ Button("Start Training") { }
 ```
 
 **Multiple glass elements:**
-
 ```swift
 GlassEffectContainer(spacing: 20) {
     HStack(spacing: 20) {
@@ -103,7 +112,6 @@ Image(systemName: "person.fill")      // Profile
 ```
 
 **Common symbols:**
-
 - Nutrition: `fork.knife`, `carrot.fill`, `drop.fill`
 - Actions: `plus.circle.fill`, `checkmark.circle.fill`
 - Stats: `chart.bar.fill`, `heart.fill`, `flame.fill`
@@ -111,7 +119,6 @@ Image(systemName: "person.fill")      // Profile
 ## Accessibility Requirements
 
 **Must-haves:**
-
 - ✅ Dynamic Type support (use `.font(.headline)` not `.font(.system(size: 17))`)
 - ✅ Minimum 44x44pt touch targets
 - ✅ VoiceOver labels: `.accessibilityLabel("Add meal")`
@@ -131,7 +138,6 @@ When `frontend-design` creates bold web concepts, adapt them:
 | Custom icons | SF Symbols |
 
 **Example:**
-
 ```swift
 // Instead of bold gradient backgrounds...
 // Use tinted glass with accent
@@ -147,7 +153,6 @@ VStack {
 ## Animations
 
 Use spring animations for natural, iOS-native motion:
-
 ```swift
 @State private var isExpanded = false
 
@@ -163,45 +168,46 @@ var body: some View {
 ```
 
 **Common patterns:**
-
 - Default spring: `.animation(.default, value: state)`
 - Smooth spring: `.spring(response: 0.3, dampingFraction: 0.7)`
 - Snappy spring: `.spring(response: 0.2, dampingFraction: 0.8)`
 
 ## Decision Flowchart
 
-**Need to choose:**
+**What are you building?**
 
-**Navigation?**
+```
+┌─ Navigation Pattern ─────────────────────────┐
+│  ├─ Primary (4-5 sections) → TabView         │
+│  ├─ Detail/hierarchy → NavigationStack       │
+│  ├─ Modal form → .sheet()                    │
+│  └─ Full takeover → .fullScreenCover()       │
+└──────────────────────────────────────────────┘
 
-- Primary app navigation → `TabView` (max 4-5 tabs)
-- Detail/drill-down → `NavigationStack`
-- Modal action → `.sheet`
-- Full immersion → `.fullScreenCover`
+┌─ Background Style ───────────────────────────┐
+│  ├─ Screen background → Solid color          │
+│  ├─ Card/panel → .regularMaterial            │
+│  ├─ Modern card (iOS 26+) → .glassEffect()   │
+│  └─ Image overlay → .ultraThinMaterial       │
+└──────────────────────────────────────────────┘
 
-**Background?**
+┌─ Button Style ───────────────────────────────┐
+│  ├─ Primary CTA → .borderedProminent         │
+│  ├─ Secondary → .bordered                    │
+│  ├─ Tertiary → .plain                        │
+│  └─ Modern (iOS 26+) → .glass/.glassProminent│
+└──────────────────────────────────────────────┘
 
-- Screen background → Solid color
-- Panel/card → `.regularMaterial` or `.glassEffect()`
-- Overlay on image → `.ultraThinMaterial`
-
-**Button style?**
-
-- Primary CTA → `.borderedProminent`
-- Secondary → `.bordered`
-- Tertiary → `.plain`
-- Modern iOS 26+ → `.glass` or `.glassProminent`
-
-**List layout?**
-
-- Simple rows → `List`
-- Custom cards → `ScrollView + LazyVStack`
-- Horizontal → `ScrollView(.horizontal) + LazyHStack`
+┌─ List Layout ────────────────────────────────┐
+│  ├─ Simple rows → List                       │
+│  ├─ Custom cards → ScrollView + LazyVStack   │
+│  └─ Horizontal → ScrollView(.horizontal)     │
+└──────────────────────────────────────────────┘
+```
 
 ## Learn More
 
 For comprehensive details, see:
-
 - **[reference.md](reference.md)** - Complete design system reference, all components, detailed guidelines
 - **[examples.md](examples.md)** - Full code examples for common patterns and layouts
 

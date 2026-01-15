@@ -15,6 +15,16 @@ Complete, runnable code examples for common iOS patterns
 
 ## Meal Card with Liquid Glass
 
+**Use case:**
+- List items with rich nutritional content
+- Dashboard widgets showing meal summaries
+- Interactive cards requiring user attention
+- When you want to highlight priority meals
+
+**Platform:** iOS 26+ (Liquid Glass), iOS 17+ (fallback to .regularMaterial)
+
+**Accessibility:** Includes Dynamic Type support, semantic colors, and proper VoiceOver labels
+
 Interactive meal card with priority badge:
 
 ```swift
@@ -113,9 +123,24 @@ struct MealsListView: View {
 }
 ```
 
+**See also:**
+- [Empty State](#empty-state) - For handling empty meal lists
+- [Priority Badge](#meal-priority-badge) - Standalone priority indicator component
+- [reference.md - Liquid Glass](reference.md#liquid-glass-detailed-guide) - Advanced Liquid Glass features
+
 ---
 
 ## Empty State
+
+**Use case:**
+- First-time user experience (no data yet)
+- Encouraging action when lists are empty
+- Post-deletion states
+- Temporary empty states (filtered results)
+
+**Platform:** iOS 17+ (uses ContentUnavailableView)
+
+**Accessibility:** ContentUnavailableView automatically handles VoiceOver and Dynamic Type
 
 Encouraging empty state with action:
 
@@ -178,9 +203,30 @@ struct CustomEmptyStateView: View {
 }
 ```
 
+**See also:**
+- [Meal Card](#meal-card-with-liquid-glass) - Card design for displaying meals
+- [Form with Validation](#form-with-validation) - For the "Add Meal" action
+- [reference.md - Component Patterns](reference.md#component-patterns) - More empty state patterns
+
 ---
 
 ## Form with Validation
+
+**Use case:**
+- Creating/editing data with structured inputs
+- Multi-section forms with validation
+- Modal data entry sheets
+- Settings screens
+
+**Platform:** iOS 16+
+
+**Accessibility:** Form automatically handles keyboard navigation and VoiceOver focus management
+
+**Key features:**
+- Real-time validation with error messages
+- Disabled save button when invalid
+- Proper keyboard types for numeric inputs
+- Segmented picker with visual indicators
 
 Add meal form with validation:
 
@@ -282,9 +328,32 @@ struct AddMealView: View {
 }
 ```
 
+**See also:**
+- [Priority Badge](#meal-priority-badge) - Priority picker used in this form
+- [reference.md - Form Patterns](reference.md#form-patterns) - Complete form guidelines
+- [reference.md - Accessibility](reference.md#accessibility-guidelines) - Form accessibility requirements
+
 ---
 
 ## Data Visualization
+
+**Use case:**
+- Training zone distribution display
+- Progress indicators with multiple segments
+- Performance metrics breakdown
+- Time/intensity analysis
+
+**Platform:** iOS 15+
+
+**Accessibility:** 
+- Uses semantic colors that adapt to light/dark mode
+- Includes descriptive labels for screen readers
+- Dynamic Type support for all text
+
+**Key features:**
+- Animated bars with GeometryReader
+- Current zone indicator with visual prominence
+- Color-coded zones following fitness conventions
 
 Training zone indicator:
 
@@ -364,9 +433,30 @@ struct TrainingZonesView: View {
 }
 ```
 
+**See also:**
+- [Meal Card](#meal-card-with-liquid-glass) - Similar card-based layout pattern
+- [reference.md - Color System](reference.md#color-system) - Semantic color guidelines
+- [reference.md - Card Design](reference.md#card-design) - Card layout best practices
+
 ---
 
 ## Meal Priority Badge
+
+**Use case:**
+- Reusable status indicators
+- Priority/urgency markers
+- Color-coded categorization
+- Compact visual cues in lists
+
+**Platform:** iOS 15+
+
+**Accessibility:** Includes explicit accessibility labels for VoiceOver users
+
+**Key features:**
+- Configurable with/without text label
+- Semantic colors that adapt to theme
+- Reusable component pattern
+- Minimal footprint (8pt circle)
 
 Reusable priority indicator component:
 
@@ -421,6 +511,11 @@ struct MealRowView: View {
     }
 }
 ```
+
+**See also:**
+- [Meal Card](#meal-card-with-liquid-glass) - Full meal card using this badge
+- [Form with Validation](#form-with-validation) - Priority picker implementation
+- [reference.md - Accessibility](reference.md#accessibility-guidelines) - Accessibility label best practices
 
 ---
 
